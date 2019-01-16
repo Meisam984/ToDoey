@@ -8,10 +8,13 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
 // TODO: - create a UIViewTableController to add a new todo item and delete it -
-class ToDoListViewController: UITableViewController {
+class ToDoListViewController: SwipeTableViewController {
 
+    @IBOutlet weak var searchBar: UISearchBar!
+    
     var todoItems : Results<Item>?
     let realm = try! Realm()
     var selectedCategory : Category? {
@@ -23,7 +26,29 @@ class ToDoListViewController: UITableViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         // Do any additional setup after loading the view, typically from a nib.
-        print(FileManager.default.urls(for: .documentDirectory, in: .userDomainMask))
+        tableView.separatorStyle = .none
+    }
+    
+    override func viewWillAppear(_ animated: Bool) {
+        
+        guard let hexColor = selectedCategory?.color else {fatalError()}
+        title = selectedCategory!.name
+        updateNavBar(withHexCode: hexColor)
+    }
+    
+    override func viewWillDisappear(_ animated: Bool) {
+        guard let originalColor = UIColor(hexString: "1D9BF6") else { fatalError() }
+        updateNavBar(withHexCode: originalColor.hexValue())
+    }
+    
+    //MARK: NavigationBarController methods
+    func updateNavBar(withHexCode colorHexCode : String) {
+        guard let navBar = navigationController?.navigationBar else {fatalError("No Navigation Bar")}
+        guard let navBarColor = UIColor(hexString: colorHexCode) else {fatalError()}
+        navBar.barTintColor = navBarColor
+        searchBar.barTintColor = navBarColor
+        navBar.tintColor = ContrastColorOf(navBarColor, returnFlat: true)
+        navBar.largeTitleTextAttributes = [NSAttributedString.Key.foregroundColor : ContrastColorOf(navBarColor, returnFlat: true)]
     }
 
     // MARK: - Tableview Datasource Methods -
@@ -36,9 +61,13 @@ class ToDoListViewController: UITableViewController {
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
 
         //TODO: Create the Reusable Cell
-        let cell = tableView.dequeueReusableCell(withIdentifier: "ToDoItemCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         if let item = todoItems?[indexPath.row] {
             cell.textLabel?.text = item.title
+            guard let color = UIColor(hexString: selectedCategory!.color)?.darken(byPercentage: CGFloat(indexPath.row) / CGFloat(todoItems!.count)) else {fatalError()}
+                
+            cell.backgroundColor = color
+            cell.textLabel?.textColor = ContrastColorOf(color, returnFlat: true)
             cell.accessoryType = item.done ? .checkmark : .none
         } else {
             cell.textLabel?.text = "No Items Added yet!"
@@ -47,7 +76,6 @@ class ToDoListViewController: UITableViewController {
     }
 
     // MARK: - Tableview Delegate Methods -
-
     override func tableView(_ tableView: UITableView, didSelectRowAt indexPath: IndexPath) {
 
         // TODO: Define the accessory type of the selected item
@@ -64,9 +92,21 @@ class ToDoListViewController: UITableViewController {
         tableView.reloadData()
         tableView.deselectRow(at: indexPath, animated: true)
     }
+    // TODO: delete items from Realm
+    override func updateModel(at indexPath: IndexPath) {
+        
+        if let itemToDelete = todoItems?[indexPath.row] {
+            do {
+                try realm.write {
+                    realm.delete(itemToDelete)
+                }
+            } catch {
+                print("Error deleting item,\(error)")
+            }
+        }
+    }
 
     //MARK: - Add New Items -
-
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
 
         //TODO: create the UIAlertController to add a new item
@@ -99,9 +139,7 @@ class ToDoListViewController: UITableViewController {
         present(alert, animated: true, completion: nil)
     }
 
-    //MARK: save data method
-    
-
+    //MARK: load items from Realm
     func loadItems()  {
         
         todoItems = selectedCategory?.items.sorted(byKeyPath: "title", ascending: true)

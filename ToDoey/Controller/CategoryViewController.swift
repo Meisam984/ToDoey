@@ -8,15 +8,16 @@
 
 import UIKit
 import RealmSwift
+import ChameleonFramework
 
-class CategoryViewController: UITableViewController {
+class CategoryViewController: SwipeTableViewController {
     
     let realm = try! Realm()
     var categories : Results<Category>?
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        
+        tableView.separatorStyle = .none
         loadCategories()
     }
     
@@ -28,14 +29,18 @@ class CategoryViewController: UITableViewController {
     
     override func tableView(_ tableView: UITableView, cellForRowAt indexPath: IndexPath) -> UITableViewCell {
         //TODO: custom cell
-        let cell = tableView.dequeueReusableCell(withIdentifier: "CategoryCell", for: indexPath)
+        let cell = super.tableView(tableView, cellForRowAt: indexPath)
         cell.textLabel?.text = categories?[indexPath.row].name ?? "No Added Category yet!"
+        guard let categoryColor = HexColor(categories?[indexPath.row].color ?? "66B2C5") else { fatalError() }
+        cell.backgroundColor = categoryColor
+        cell.textLabel?.textColor = ContrastColorOf(categoryColor, returnFlat: true)
         return cell
     }
     
+    
     //MARK: - Data Manipulation Methods -
     func loadCategories() {
-//        //TODO: loading Data from Realm
+        //TODO: loading Data from Realm
         categories = realm.objects(Category.self)
         tableView.reloadData()
     }
@@ -51,6 +56,20 @@ class CategoryViewController: UITableViewController {
         }
         tableView.reloadData()
     }
+    override func updateModel(at indexPath: IndexPath) {
+        
+            if let categoryToDelete = self.categories?[indexPath.row] {
+                do {
+                    try self.realm.write {
+                        self.realm.delete(categoryToDelete)
+                    }
+                } catch {
+                    print("Error deleting the category, \(error)")
+                }
+                
+            }
+            
+        }
     
     //MARK: Add New Categories
     @IBAction func addButtonPressed(_ sender: UIBarButtonItem) {
@@ -61,6 +80,7 @@ class CategoryViewController: UITableViewController {
             
             let newCategory = Category()
             newCategory.name = textField.text!
+            newCategory.color = UIColor.randomFlat.hexValue()
             self.save(category: newCategory)
             self.tableView.reloadData()
         }
@@ -88,3 +108,4 @@ class CategoryViewController: UITableViewController {
     
     
 }
+
